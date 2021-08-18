@@ -54,22 +54,27 @@ static int fanotify_max_queued_events __read_mostly;
 
 #include <linux/sysctl.h>
 
+static long ft_zero = 0;
+static long ft_int_max = INT_MAX;
+
 struct ctl_table fanotify_table[] = {
 	{
 		.procname	= "max_user_groups",
 		.data	= &init_user_ns.ucount_max[UCOUNT_FANOTIFY_GROUPS],
-		.maxlen		= sizeof(int),
+		.maxlen		= sizeof(long),
 		.mode		= 0644,
-		.proc_handler	= proc_dointvec_minmax,
-		.extra1		= SYSCTL_ZERO,
+		.proc_handler	= proc_doulongvec_minmax,
+		.extra1		= &ft_zero,
+		.extra2		= &ft_int_max,
 	},
 	{
 		.procname	= "max_user_marks",
 		.data	= &init_user_ns.ucount_max[UCOUNT_FANOTIFY_MARKS],
-		.maxlen		= sizeof(int),
+		.maxlen		= sizeof(long),
 		.mode		= 0644,
-		.proc_handler	= proc_dointvec_minmax,
-		.extra1		= SYSCTL_ZERO,
+		.proc_handler	= proc_doulongvec_minmax,
+		.extra1		= &ft_zero,
+		.extra2		= &ft_int_max,
 	},
 	{
 		.procname	= "max_queued_events",
@@ -471,7 +476,7 @@ static ssize_t copy_event_to_user(struct fsnotify_group *group,
 					info_type, fanotify_info_name(info),
 					info->name_len, buf, count);
 		if (ret < 0)
-			return ret;
+			goto out_close_fd;
 
 		buf += ret;
 		count -= ret;
@@ -519,7 +524,7 @@ static ssize_t copy_event_to_user(struct fsnotify_group *group,
 					fanotify_event_object_fh(event),
 					info_type, dot, dot_len, buf, count);
 		if (ret < 0)
-			return ret;
+			goto out_close_fd;
 
 		buf += ret;
 		count -= ret;
