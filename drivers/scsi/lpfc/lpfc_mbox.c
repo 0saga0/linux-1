@@ -429,7 +429,7 @@ lpfc_config_msi(struct lpfc_hba *phba, LPFC_MBOXQ_t *pmb)
 	memset(pmb, 0, sizeof(LPFC_MBOXQ_t));
 
 	/*
-	 * SLI-3, Message Signaled Interrupt Fearure.
+	 * SLI-3, Message Signaled Interrupt Feature.
 	 */
 
 	/* Multi-message attention configuration */
@@ -513,8 +513,9 @@ lpfc_init_link(struct lpfc_hba * phba,
 		break;
 	}
 
-	if ((phba->pcidev->device == PCI_DEVICE_ID_LANCER_G6_FC ||
-	     phba->pcidev->device == PCI_DEVICE_ID_LANCER_G7_FC) &&
+	/* Topology handling for ASIC_GEN_NUM 0xC and later */
+	if ((phba->sli4_hba.pc_sli4_params.sli_family == LPFC_SLI_INTF_FAMILY_G6 ||
+	     phba->sli4_hba.pc_sli4_params.if_type == LPFC_SLI_INTF_IF_TYPE_6) &&
 	    !(phba->sli4_hba.pc_sli4_params.pls) &&
 	    mb->un.varInitLnk.link_flags & FLAGS_TOPOLOGY_MODE_LOOP) {
 		mb->un.varInitLnk.link_flags = FLAGS_TOPOLOGY_MODE_PT_PT;

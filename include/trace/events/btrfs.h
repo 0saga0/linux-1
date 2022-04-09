@@ -53,6 +53,7 @@ struct btrfs_space_info;
 		{ BTRFS_TREE_RELOC_OBJECTID,	"TREE_RELOC"	},	\
 		{ BTRFS_UUID_TREE_OBJECTID,	"UUID_TREE"	},	\
 		{ BTRFS_FREE_SPACE_TREE_OBJECTID, "FREE_SPACE_TREE" },	\
+		{ BTRFS_BLOCK_GROUP_TREE_OBJECTID, "BLOCK_GROUP_TREE" },\
 		{ BTRFS_DATA_RELOC_TREE_OBJECTID, "DATA_RELOC_TREE" })
 
 #define show_root_type(obj)						\
@@ -94,6 +95,7 @@ struct btrfs_space_info;
 	EM( FLUSH_DELAYED_ITEMS,	"FLUSH_DELAYED_ITEMS")		\
 	EM( FLUSH_DELALLOC,		"FLUSH_DELALLOC")		\
 	EM( FLUSH_DELALLOC_WAIT,	"FLUSH_DELALLOC_WAIT")		\
+	EM( FLUSH_DELALLOC_FULL,	"FLUSH_DELALLOC_FULL")		\
 	EM( FLUSH_DELAYED_REFS_NR,	"FLUSH_DELAYED_REFS_NR")	\
 	EM( FLUSH_DELAYED_REFS,		"FLUSH_ELAYED_REFS")		\
 	EM( ALLOC_CHUNK,		"ALLOC_CHUNK")			\
@@ -181,18 +183,18 @@ FLUSH_STATES
 
 TRACE_EVENT(btrfs_transaction_commit,
 
-	TP_PROTO(const struct btrfs_root *root),
+	TP_PROTO(const struct btrfs_fs_info *fs_info),
 
-	TP_ARGS(root),
+	TP_ARGS(fs_info),
 
 	TP_STRUCT__entry_btrfs(
 		__field(	u64,  generation		)
 		__field(	u64,  root_objectid		)
 	),
 
-	TP_fast_assign_btrfs(root->fs_info,
-		__entry->generation	= root->fs_info->generation;
-		__entry->root_objectid	= root->root_key.objectid;
+	TP_fast_assign_btrfs(fs_info,
+		__entry->generation	= fs_info->generation;
+		__entry->root_objectid	= BTRFS_ROOT_TREE_OBJECTID;
 	),
 
 	TP_printk_btrfs("root=%llu(%s) gen=%llu",
@@ -2037,7 +2039,7 @@ TRACE_EVENT(btrfs_convert_extent_bit,
 );
 
 DECLARE_EVENT_CLASS(btrfs_dump_space_info,
-	TP_PROTO(const struct btrfs_fs_info *fs_info,
+	TP_PROTO(struct btrfs_fs_info *fs_info,
 		 const struct btrfs_space_info *sinfo),
 
 	TP_ARGS(fs_info, sinfo),
@@ -2057,6 +2059,8 @@ DECLARE_EVENT_CLASS(btrfs_dump_space_info,
 		__field(	u64,	delayed_refs_reserved	)
 		__field(	u64,	delayed_reserved	)
 		__field(	u64,	free_chunk_space	)
+		__field(	u64,	delalloc_bytes		)
+		__field(	u64,	ordered_bytes		)
 	),
 
 	TP_fast_assign_btrfs(fs_info,
@@ -2074,6 +2078,8 @@ DECLARE_EVENT_CLASS(btrfs_dump_space_info,
 		__entry->delayed_refs_reserved	=	fs_info->delayed_refs_rsv.reserved;
 		__entry->delayed_reserved	=	fs_info->delayed_block_rsv.reserved;
 		__entry->free_chunk_space	=	atomic64_read(&fs_info->free_chunk_space);
+		__entry->delalloc_bytes		=	percpu_counter_sum_positive(&fs_info->delalloc_bytes);
+		__entry->ordered_bytes		=	percpu_counter_sum_positive(&fs_info->ordered_bytes);
 	),
 
 	TP_printk_btrfs("flags=%s total_bytes=%llu bytes_used=%llu "
@@ -2081,7 +2087,8 @@ DECLARE_EVENT_CLASS(btrfs_dump_space_info,
 			"bytes_may_use=%llu bytes_readonly=%llu "
 			"reclaim_size=%llu clamp=%d global_reserved=%llu "
 			"trans_reserved=%llu delayed_refs_reserved=%llu "
-			"delayed_reserved=%llu chunk_free_space=%llu",
+			"delayed_reserved=%llu chunk_free_space=%llu "
+			"delalloc_bytes=%llu ordered_bytes=%llu",
 			__print_flags(__entry->flags, "|", BTRFS_GROUP_FLAGS),
 			__entry->total_bytes, __entry->bytes_used,
 			__entry->bytes_pinned, __entry->bytes_reserved,
@@ -2089,11 +2096,18 @@ DECLARE_EVENT_CLASS(btrfs_dump_space_info,
 			__entry->reclaim_size, __entry->clamp,
 			__entry->global_reserved, __entry->trans_reserved,
 			__entry->delayed_refs_reserved,
-			__entry->delayed_reserved, __entry->free_chunk_space)
+			__entry->delayed_reserved, __entry->free_chunk_space,
+			__entry->delalloc_bytes, __entry->ordered_bytes)
 );
 
 DEFINE_EVENT(btrfs_dump_space_info, btrfs_done_preemptive_reclaim,
-	TP_PROTO(const struct btrfs_fs_info *fs_info,
+	TP_PROTO(struct btrfs_fs_info *fs_info,
+		 const struct btrfs_space_info *sinfo),
+	TP_ARGS(fs_info, sinfo)
+);
+
+DEFINE_EVENT(btrfs_dump_space_info, btrfs_fail_all_tickets,
+	TP_PROTO(struct btrfs_fs_info *fs_info,
 		 const struct btrfs_space_info *sinfo),
 	TP_ARGS(fs_info, sinfo)
 );
